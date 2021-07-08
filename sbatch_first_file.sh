@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -p TeslaV100
-#SBATCH -J list_print
+#SBATCH -J enas_search
 #SBATCH --output=train_darts_nni_search_%j.out
 #SBATCH --gres=gpu
 #SBATCH -c 6

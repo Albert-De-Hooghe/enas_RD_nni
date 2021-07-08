@@ -7,36 +7,48 @@ from argparse import ArgumentParser
 
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
+from constants import COMPLEMENT_FOLDER_NAME
+from readRD_dataset import RD_Dataset_train_5_classes, RD_Dataset_valid_5_classes
 import datasets
 from macro import GeneralNetwork
 from micro import MicroNetwork
-from nni.algorithms.nas.pytorch import enas
+import enas
 from nni.nas.pytorch.callbacks import (ArchitectureCheckpoint,
                                        LRSchedulerCallback)
 from utils import accuracy, reward_accuracy
 
-logger = logging.getLogger('nni')
+
 
 
 if __name__ == "__main__":
     parser = ArgumentParser("enas")
-    parser.add_argument("--batch-size", default=128, type=int)
+    parser.add_argument("--batch-size", default=8, type=int)
     parser.add_argument("--log-frequency", default=10, type=int)
     parser.add_argument("--search-for", choices=["macro", "micro"], default="macro")
     parser.add_argument("--epochs", default=None, type=int, help="Number of epochs (default: macro 310, micro 150)")
     parser.add_argument("--visualization", default=False, action="store_true")
-    parser.add_argument("--v1", default=False, action="store_true")
+    parser.add_argument("--v1", default=True, action="store_true")
+    parser.add_argument("--path-dataset", default="")
+    parser.add_argument("--name-log-dir", default="")
     args = parser.parse_args()
 
-    dataset_train, dataset_valid = datasets.get_dataset("cifar10")
+    complement_folder_name = 1
+    #writer = SummaryWriter('logs/writerOutput/FirstTries/' + str(complement_folder_name)) ## code with args.name_log_dir
+    logger = logging.getLogger('nni')
+
+    # dataset_train, dataset_valid = datasets.get_dataset("cifar10")
+    size = "search"
+    dataset_train, dataset_valid = RD_Dataset_train_5_classes(taille=size), RD_Dataset_valid_5_classes(taille=size)
+    print(dataset_train[0], dataset_valid[0])
     mutator = None
     ctrl_kwargs = {}
     if args.search_for == "macro":
-        model = GeneralNetwork()
-        num_epochs = args.epochs or 310
+        model = GeneralNetwork(num_classes=5)
+        num_epochs = args.epochs or 5000
     elif args.search_for == "micro":
-        model = MicroNetwork(num_layers=6, out_channels=20, num_nodes=5, dropout_rate=0.1, use_aux_heads=False)
+        model = MicroNetwork(num_layers=6, out_channels=20, num_nodes=5, dropout_rate=0.1, use_aux_heads=False, num_classes=5)
         num_epochs = args.epochs or 150
         if args.v1:
             mutator = enas.EnasMutator(model, tanh_constant=1.1, cell_exit_extra_step=True)
@@ -55,7 +67,7 @@ if __name__ == "__main__":
                                    metrics=accuracy,
                                    reward_function=reward_accuracy,
                                    optimizer=optimizer,
-                                   callbacks=[LRSchedulerCallback(lr_scheduler), ArchitectureCheckpoint("./checkpoints")],
+                                   callbacks=[LRSchedulerCallback(lr_scheduler), ArchitectureCheckpoint("./logs/checkpoints_architecture/"+COMPLEMENT_FOLDER_NAME)],
                                    batch_size=args.batch_size,
                                    num_epochs=num_epochs,
                                    dataset_train=dataset_train,
