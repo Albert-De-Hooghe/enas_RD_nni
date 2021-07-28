@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 
+from sklearn.metrics import cohen_kappa_score
 from nni.nas.pytorch.trainer import Trainer
 from nni.nas.pytorch.utils import AverageMeterGroup, to_device
 from torch.utils.tensorboard import SummaryWriter
@@ -101,6 +102,8 @@ class EnasTrainer(Trainer):
 
         self.list_accuracy_sur_valid_base = []
         self.list_name_acc_valid_utils = []
+        self.list_kappa_sur_valid_base = []
+        self.list_name_kappa_valid_utils = []
     def init_dataloader(self):
         n_train = len(self.dataset_train)
         split = n_train // 10
@@ -212,14 +215,17 @@ class EnasTrainer(Trainer):
                     x, y = to_device(x, self.device), to_device(y, self.device)
                     self.mutator.reset()
                     logits = self.model(x)
-                    print("logits", logits)
+                    #print("logits", logits)
                     for i in range(len(y)):
                         var = y[i].item()
                         labels_for_kappa.append(var)
 
                     for i in range(len(logits)):
-                        var2 = torch.argmax(logits)
+                        #print('logits :', logits)
+                        var2 = torch.argmax(logits[i])
+                        #print('var2 :', var2)
                         var3 = var2.cpu().numpy()
+                        #print('var3 :', var3)
                         preds_for_kappa.append(var3)
 
 
@@ -243,21 +249,36 @@ class EnasTrainer(Trainer):
                 # writer.add_scalar("acc1/validation",  global_step= epoch*self.test_arc_per_epoch + arc_id)
 
 
-            print("coucou_metrics{}".format(epoch), meters.summary())
+            #print("coucou_metrics{}".format(epoch), meters.summary())
 
         accuracy_val = somme_accuracy / compteur
         self.list_accuracy_sur_valid_base.append(accuracy_val)
         self.list_name_acc_valid_utils.append("accuracy num {}".format(epoch))
-        print("list_acc :", self.list_accuracy_sur_valid_base)
+        #print("list_acc :", self.list_accuracy_sur_valid_base)
+        kappavalue = cohen_kappa_score(labels_for_kappa, preds_for_kappa, weights='quadratic')
+        print("labels_for_kappa list is :", labels_for_kappa[:100])
+        print("preds_for_kappa list is :", preds_for_kappa[:100])
+        self.list_kappa_sur_valid_base.append(kappavalue)
+        self.list_name_kappa_valid_utils.append("kappa num {}".format(epoch))
+        print("kappa and accuracy for the epoch ", epoch, "are", kappavalue, "and", accuracy_val)
 
         if ((epoch%500 == 0) or (epoch == self.num_epochs)):
 
             df = pd.DataFrame(list(zip(self.list_name_acc_valid_utils, self.list_accuracy_sur_valid_base)))
 
-            compression_opts = dict(method='zip', archive_name='list_accuracy_apres_epoch{}.csv'.format(epoch))
+            compression_opts = dict(method='zip', archive_name='list_3rdtrial_LR_0_01_accuracy_apres_epoch{}.csv'.format(epoch))
 
-            df.to_csv('list_accuracy_apres_epoch{}.zip'.format(epoch), index=False, compression=compression_opts)
-        print("voici !", accuracy_val)
-        print("kappa debut des 2 listes", labels_for_kappa[:20], preds_for_kappa[:20]) ## kappa non utilisé pour l'instant
+            df.to_csv('list_3rdtrial_LR_0_01_accuracy_apres_epoch{}.zip'.format(epoch), index=False, compression=compression_opts)
 
-        #car les kappa preds ne sont pas bonnes.
+            dfbis = pd.DataFrame(list(zip(self.list_name_acc_valid_utils, self.list_kappa_sur_valid_base)))
+
+            compression_opts = dict(method='zip', archive_name='list_3rdtrial_LR_0_01_kappa_apres_epoch{}.csv'.format(epoch))
+
+            dfbis.to_csv('list_3rdtrial_LR_0_01_kappa_apres_epoch{}.zip'.format(epoch), index=False, compression=compression_opts)
+
+        #print("voici !", accuracy_val)
+        #print("kappa debut des 2 listes", labels_for_kappa[:20], preds_for_kappa[:20]) ## kappa non utilisé pour l'instant
+
+
+
+

@@ -5,7 +5,8 @@ import logging
 
 from nni.nas.pytorch import apply_fixed_architecture
 
-from constants import COMPLEMENT_FOLDER_NAME
+from sklearn.metrics import cohen_kappa_score
+from constants import COMPLEMENT_FOLDER_NAME_Retrain
 from macro import GeneralNetwork
 from readRD_dataset import RD_Dataset_valid_5_classes, RD_Dataset_train_5_classes
 import torch
@@ -85,7 +86,8 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step):
     losses = AverageMeter("losses")
 
     model.eval()
-
+    list_labels_validation = []
+    list_prediction_validation = []
     with torch.no_grad():
         for step, (X, y) in enumerate(valid_loader):
             X, y = X.to(device, non_blocking=True), y.to(device, non_blocking=True)
@@ -94,6 +96,13 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step):
             logits = model(X)
             loss = criterion(m(logits), y)
 
+            for i in range(len(X)):
+                #print("logits are :", logits)
+                #print("y is :", y)
+                #print("liste des labels for Kappa:",  list_labels_validation)
+                #print("list des prediction fo kappa: ", list_prediction_validation)
+                list_labels_validation.append(y[i].item())
+                list_prediction_validation.append(torch.argmax(logits[i]).item())
 
             accuracy = utils.accuracy(logits, y, topk=(1, 5))
             losses.update(loss.item(), bs)
@@ -106,7 +115,9 @@ def validate(config, valid_loader, model, criterion, epoch, cur_step):
                     "Prec@(1,5) ({top1.avg:.1%})".format(
                         epoch + 1, config.epochs, step, len(valid_loader) - 1, losses=losses,
                         top1=top1))
+    kappavalue = cohen_kappa_score(list_labels_validation, list_prediction_validation, weights='quadratic')
 
+    writer.add_scalar("kappa/validation", kappavalue, global_step=cur_step / len(train_loader))
     writer.add_scalar("loss/validation", losses.avg, global_step=cur_step / len(train_loader))
     writer.add_scalar("acc1/validation", top1.avg, global_step=cur_step / len(train_loader))
     # writer.add_scalar("acc5/test", top5.avg, global_step=cur_step)
@@ -119,8 +130,8 @@ if __name__ == "__main__":
 
     logger = logging.getLogger('nni')
 
-    learning_rate = 0.001
-    epoch_choisie_pour_retrain = 309
+    learning_rate = 0.008
+    epoch_choisie_pour_retrain = 3808 ### 3808 best
 
     complement_nom_folder_LR = '_LR_' + str(learning_rate).replace('.', '_') + '/'
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -135,10 +146,10 @@ if __name__ == "__main__":
     parser.add_argument("--drop-path-prob", default=0.2, type=float)
     parser.add_argument("--workers", default=4)
     parser.add_argument("--grad-clip", default=5., type=float)
-    parser.add_argument("--arc-checkpoint", default="./logs/checkpoints_architecture/"+COMPLEMENT_FOLDER_NAME+"/"+"epoch_"+ str(epoch_choisie_pour_retrain) +".json")
+    parser.add_argument("--arc-checkpoint", default="./logs/checkpoints_architecture/"+COMPLEMENT_FOLDER_NAME_Retrain+"/"+"epoch_"+ str(epoch_choisie_pour_retrain) +".json")
 
     args = parser.parse_args()
-    size = "small"
+    size = "search"
     dataset_train, dataset_valid = RD_Dataset_train_5_classes(taille=size), RD_Dataset_valid_5_classes(taille=size)
     #datasets.get_dataset("cifar10", cutout_length=16)
 
@@ -168,7 +179,7 @@ if __name__ == "__main__":
     model.to(device)
     criterion.to(device)
 
-
+    print(model)
 
     # 10-3, 10-4 , 10-5, 10-6
     optimizer = torch.optim.SGD(model.parameters(), learning_rate, momentum=0.9, weight_decay=3.0E-4)

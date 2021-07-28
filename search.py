@@ -34,19 +34,19 @@ if __name__ == "__main__":
     parser.add_argument("--name-log-dir", default="")
     args = parser.parse_args()
 
-    complement_folder_name = 1
+
     #writer = SummaryWriter('logs/writerOutput/FirstTries/' + str(complement_folder_name)) ## code with args.name_log_dir
     logger = logging.getLogger('nni')
 
     # dataset_train, dataset_valid = datasets.get_dataset("cifar10")
     size = "search"
     dataset_train, dataset_valid = RD_Dataset_train_5_classes(taille=size), RD_Dataset_valid_5_classes(taille=size)
-    print(dataset_train[0], dataset_valid[0])
+    #print(dataset_train[0], dataset_valid[0])
     mutator = None
     ctrl_kwargs = {}
     if args.search_for == "macro":
         model = GeneralNetwork(num_classes=5)
-        num_epochs = args.epochs or 5000
+        num_epochs = args.epochs or 3000
     elif args.search_for == "micro":
         model = MicroNetwork(num_layers=6, out_channels=20, num_nodes=5, dropout_rate=0.1, use_aux_heads=False, num_classes=5)
         num_epochs = args.epochs or 150
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         raise AssertionError
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), 0.05, momentum=0.9, weight_decay=1.0E-4)
+    optimizer = torch.optim.SGD(model.parameters(), 0.01, momentum=0.9, weight_decay=1.0E-4)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=0.001)
 
     if args.v1:
